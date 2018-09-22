@@ -88,7 +88,7 @@ def gm(stdscr):
         stdscr.addstr(scr_h-1, 2, usr_in)  # print the partially typed user input to the screen
         usr_in_char = stdscr.getch(cursor[1],cursor[0])  # capture the character that the user typed
         if usr_in_char == 10:  # if the user pressed 'enter'
-            if usr_in[0:1] == "\\":  # backslash represents interactive mode
+            if usr_in[0:1] == "\\" or usr_in[0:1] == "/":  # backslash represents interactive mode
                 if usr_in[1:] == "quit" or usr_in[1:] == "exit":  # check if the user wants to exit the program
                     is_exit = 0
                 elif usr_in[1:] == "refresh":  # check if the user wants to load the messages prematurely
