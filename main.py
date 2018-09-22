@@ -12,13 +12,21 @@ with open("gm_token.txt", "r") as usr_file:  # load the users initialization dat
 
 usr_token = usr_json["token"].encode('ascii', errors='ignore')  # Obtain the users access token from json data
 
-def pull_messages(token, count, usr_grp, screen_width):    
-    r_url = gm_url + "groups/" + str(usr_grp) + "/messages?token=" + token + "&limit=" + str(count)
-    r = requests.get(r_url)
-    r_json = json.loads(r.text)
+def pull_messages(token, count, usr_grp, screen_width, msg_tp="group"):    
+
+    if msg_tp == "group":
+        r_url = gm_url + "groups/" + str(usr_grp) + "/messages?token=" + token + "&limit=" + str(count)
+        r = requests.get(r_url)
+        r_json = json.loads(r.text)
+        message_list = r_json['response']['messages']
+    else:
+        r_url = gm_url + "direct_messages?other_user_id=" + str(usr_grp) + "&token=" + token + "&limit=" + str(count)
+        r = requests.get(r_url)
+        r_json = json.loads(r.text)
+        message_list = r_json['response']['direct_messages']
 
     msg_arr = ["" for x in range(count)]  # initial array to hold the mesages and message data
-    for msg_i, msg in enumerate(reversed(r_json['response']['messages']), start=0):
+    for msg_i, msg in enumerate(reversed(message_list), start=0):
         if msg['text'] is None:  # No text means the user posted an image
             ret_msg = msg['name'] + " posted an image."
         elif len(msg['favorited_by']) > 0:  # Check if the are any likes on the message
@@ -39,7 +47,23 @@ def get_active_groups(token):  # pulls the list of groups that the user is a par
     for grp in r_json['response']:  # iterate through groups, and build list containing the ID, name, and number of members
         act_grps.append([grp['group_id'], grp['name'], len(grp['members'])])
 
+    r_url = gm_url + "chats?token=" + token
+    r = requests.get(r_url)
+    r_json = json.loads(r.text)
+    for chat in r_json['response']:
+        act_grps.append([chat['other_user']['id'], chat['other_user']['name'], 1])
+
     return act_grps
+
+def get_dm_list(token):  # pulls the list of direct messages that the user is a part of 
+    act_dm = []
+    r_url = gm_url + "chats?token=" + token
+    r - requessts.get(r_url)
+    r_json = json_loads(r.text)
+    for chat in r_json['response']:
+        act_dm.append([chat['other_user']['id'], chat['other_user']['name'], 1])
+
+    return act_dm
 
 def print_groups(grps):  # build an array that displays each groups information
     grp_disp = []
@@ -71,6 +95,7 @@ def gm(stdscr):
     is_exit = 1  # 1 represent conintue, 0 represents exit
     last_update = datetime.datetime.now()
     curses.halfdelay(5)  # if no user input, refresh the display every 5 seconds
+    cur_chat_type = "group"
 
     while (is_exit != 0):  # iterate through time, until the user wants to quit
 #        stdscr.refresh() 
@@ -79,7 +104,7 @@ def gm(stdscr):
         if (cur_time - last_update).total_seconds() > time_interval:  # check if enough time has passed to update the message list
             last_update = cur_time
             stdscr.clear()
-            disp_arr = pull_messages(usr_token, scr_h-1, group_id, scr_w)
+            disp_arr = pull_messages(usr_token, scr_h-1, group_id, scr_w, cur_chat_type)
 
         for i, msg in enumerate(disp_arr):  # iterate through the display array and print to screen
             stdscr.addstr(i,0,msg.encode('UTF-8'))
@@ -92,7 +117,7 @@ def gm(stdscr):
                 if usr_in[1:] == "quit" or usr_in[1:] == "exit":  # check if the user wants to exit the program
                     is_exit = 0
                 elif usr_in[1:] == "refresh":  # check if the user wants to load the messages prematurely
-                    disp_arr = pull_messages(usr_token, scr_h-1, group_id, scr_w)
+                    disp_arr = pull_messages(usr_token, scr_h-1, group_id, scr_w, cur_chat_type)
                 elif usr_in[1:4] == "set":  # let the user define some global variables
                     if usr_in[5:16] == "refresh rate":  # rate at which new messages are pulled
                         time_interval = int(usr_in[18:])
@@ -108,14 +133,19 @@ def gm(stdscr):
                         if sel_char == 10:  # if user pressed 'enter'
                             group_id = my_grps[sel_cursor[1]][0]  # change group ID to the one currently highlighted
                             menu_done = True
-                            disp_arr = pull_messages(usr_token, scr_h-1, group_id, scr_w)
+                            if my_grps[sel_cursor[1]][2] == 1:
+                                cur_chat_type = "dm"
+                            else:
+                                cur_chat_type = "group"
+                            disp_arr = pull_messages(usr_token, scr_h-1, group_id, scr_w, cur_chat_type)
                         elif sel_char == curses.KEY_UP:
                             sel_cursor[1] = max(0, sel_cursor[1] - 1)  # move the cursor up one position
                         elif sel_char == curses.KEY_DOWN:
                             sel_cursor[1] = min(min(scr_h-1, sel_cursor[1] + 1), len(my_grps))  # move the cursor down one position
-                        stdscr.clear()
-                        for i, grp in enumerate(disp_arr):
-                            stdscr.addstr(i, 0, grp.encode('UTF-8'))
+                        else:
+                            stdscr.clear()
+                            for i, grp in enumerate(disp_arr):
+                                stdscr.addstr(i, 0, grp.encode('ascii'))
 
                         stdscr.move(sel_cursor[1], sel_cursor[0])
                         stdscr.refresh()
