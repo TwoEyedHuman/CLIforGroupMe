@@ -10,7 +10,7 @@ gm_url = "https://api.groupme.com/v3/"  # base url of the GroupMe API
 with open("gm_token.txt", "r") as usr_file:  # load the users initialization data
     usr_json = json.loads(usr_file.read())
 
-usr_token = usr_json["token"].encode('ascii', errors='ignore')  # Obtain the users access token from json data
+usr_token = usr_json["token"].encode('ascii', errors='ignore')  # obtain the users access token from json data
 
 
 def pull_messages(token, count, usr_grp, screen_width, msg_tp="group"):  # pull the latest messages from a group chat or DM
@@ -18,12 +18,18 @@ def pull_messages(token, count, usr_grp, screen_width, msg_tp="group"):  # pull 
         r_url = gm_url + "groups/" + str(usr_grp) + "/messages?token=" + token + "&limit=" + str(count)
         r = requests.get(r_url)
         r_json = json.loads(r.text)
-        message_list = r_json['response']['messages']
+        try:
+            message_list = r_json['response']['messages']
+        except:
+            message_list = []
     else:
         r_url = gm_url + "direct_messages?other_user_id=" + str(usr_grp) + "&token=" + token + "&limit=" + str(count)
         r = requests.get(r_url)
         r_json = json.loads(r.text)
-        message_list = r_json['response']['direct_messages']
+        try:
+            message_list = r_json['response']['direct_messages']
+        except:
+            message_list = []
 
     msg_arr = ["" for x in range(count)]  # initial array to hold the mesages and message data
     for msg_i, msg in enumerate(reversed(message_list), start=0):
@@ -117,7 +123,7 @@ def gm(stdscr):
             disp_arr = pull_messages(usr_token, scr_h-1, group_id, scr_w, cur_chat_type)
 
         for i, msg in enumerate(disp_arr):  # iterate through the display array and print to screen
-            stdscr.addstr(i,0,msg[0:scr_w].encode('ascii'))
+            stdscr.addstr(i,0,msg.replace("\n","")[0:scr_w].encode('ascii'))
     
         stdscr.addstr(scr_h-1, 0, ">")  # user input indicator
         stdscr.addstr(scr_h-1, 2, usr_in)  # print the partially typed user input to the screen
