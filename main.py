@@ -12,8 +12,8 @@ with open("gm_token.txt", "r") as usr_file:  # load the users initialization dat
 
 usr_token = usr_json["token"].encode('ascii', errors='ignore')  # Obtain the users access token from json data
 
-def pull_messages(token, count, usr_grp, screen_width, msg_tp="group"):    
 
+def pull_messages(token, count, usr_grp, screen_width, msg_tp="group"):  # pull the latest messages from a group chat or DM
     if msg_tp == "group":
         r_url = gm_url + "groups/" + str(usr_grp) + "/messages?token=" + token + "&limit=" + str(count)
         r = requests.get(r_url)
@@ -39,6 +39,7 @@ def pull_messages(token, count, usr_grp, screen_width, msg_tp="group"):
 
     return msg_arr
 
+
 def get_active_groups(token):  # pulls the list of groups that the user is a part of
     act_grps = []
     r_url = gm_url + "groups?token=" + token
@@ -55,38 +56,48 @@ def get_active_groups(token):  # pulls the list of groups that the user is a par
 
     return act_grps
 
-def get_dm_list(token):  # pulls the list of direct messages that the user is a part of 
-    act_dm = []
-    r_url = gm_url + "chats?token=" + token
-    r - requessts.get(r_url)
-    r_json = json_loads(r.text)
-    for chat in r_json['response']:
-        act_dm.append([chat['other_user']['id'], chat['other_user']['name'], 1])
-
-    return act_dm
 
 def print_groups(grps):  # build an array that displays each groups information
     grp_disp = []
-    for grp_i, grp in enumerate(grps):
-        grp_disp.append(grp[1].encode('ascii', errors='ignore') + " (" + str(grp[2]).encode('ascii', errors='ignore') + " members)")
+    for grp_i, grp in enumerate(grps):  # iterate over each group, building its display
+        if grp[2] > 1:
+            grp_disp.append(grp[1].encode('ascii', errors='ignore') + " (" + str(grp[2]).encode('ascii', errors='ignore') + " members)")  # grp[1] is the group name and grp[2] is the group size
+        elif grp[2] == 1:
+             grp_disp.append(grp[1].encode('ascii', errors='ignore'))  # grp[1] is the group name and grp[2] is the group size
+        else:
+            raise ValueError("No members in chat.")
     return grp_disp
 
-def send_message(token, msg_txt, usr_grp):  # send a message to the currently active chat
-    msg_url = "https://api.groupme.com/v3/groups/" + usr_grp + "/messages?token=" + token
-    post_data = {
-"message": {
-        "source_guid": str(random.randint(12345,12345678)),
-        "text": msg_txt
-    }
-}
+def send_message(token, msg_txt, usr_grp_id, chat_type = "group"):  # send a message to the currently active chat
+    if chat_type == "group":  # chat type is a group
+        msg_url = "https://api.groupme.com/v3/groups/" + usr_grp_id + "/messages?token=" + token
+        post_data = {
+        "message": {
+            "source_guid": str(random.randint(12345,12345678)),
+            "text": msg_txt
+            }
+        }
 
-    requests.post(msg_url, json=post_data)
+    elif chat_type == "dm":  # chat type is a direct message
+        msg_url = gm_url + "direct_messages?token=" + token
+        post_data = {
+        "direct_message": {
+            "source_guid": str(random.randint(12345,12345678)),  # a different guid is needed in any given minute
+            "recipient_id": usr_grp_id,
+            "text": msg_txt
+            }
+        }
+    else:
+        raise ValueError("Incorrect chat type in function send_message.")
+
+    requests.post(msg_url, json=post_data)  # post the json data to server
 
 def gm(stdscr):
     time_interval = 15  # represents the rate at which new messages are pulled
     scr_h, scr_w = stdscr.getmaxyx()  # screen dimensions
     group_id = usr_json["group"]  # id of the default group
-    disp_arr = pull_messages(usr_token, scr_h-1, group_id, scr_w)  # pull initial set of messages
+    cur_chat_type = "group"
+    disp_arr = pull_messages(usr_token, scr_h-1, group_id, scr_w, cur_chat_type)  # pull initial set of messages
     cursor = [2, scr_h-1]  # initial position of cursor
     usr_in = ""
 
@@ -95,7 +106,6 @@ def gm(stdscr):
     is_exit = 1  # 1 represent conintue, 0 represents exit
     last_update = datetime.datetime.now()
     curses.halfdelay(5)  # if no user input, refresh the display every 5 seconds
-    cur_chat_type = "group"
 
     while (is_exit != 0):  # iterate through time, until the user wants to quit
 #        stdscr.refresh() 
@@ -107,8 +117,8 @@ def gm(stdscr):
             disp_arr = pull_messages(usr_token, scr_h-1, group_id, scr_w, cur_chat_type)
 
         for i, msg in enumerate(disp_arr):  # iterate through the display array and print to screen
-            stdscr.addstr(i,0,msg.encode('UTF-8'))
-
+            stdscr.addstr(i,0,msg[0:scr_w].encode('ascii'))
+    
         stdscr.addstr(scr_h-1, 0, ">")  # user input indicator
         stdscr.addstr(scr_h-1, 2, usr_in)  # print the partially typed user input to the screen
         usr_in_char = stdscr.getch(cursor[1],cursor[0])  # capture the character that the user typed
@@ -133,9 +143,9 @@ def gm(stdscr):
                         if sel_char == 10:  # if user pressed 'enter'
                             group_id = my_grps[sel_cursor[1]][0]  # change group ID to the one currently highlighted
                             menu_done = True
-                            if my_grps[sel_cursor[1]][2] == 1:
+                            if my_grps[sel_cursor[1]][2] == 1:  # check if the chat is a direct message
                                 cur_chat_type = "dm"
-                            else:
+                            elif my_grps[sel_cursor[1]][2] > 1:
                                 cur_chat_type = "group"
                             disp_arr = pull_messages(usr_token, scr_h-1, group_id, scr_w, cur_chat_type)
                         elif sel_char == curses.KEY_UP:
@@ -151,7 +161,7 @@ def gm(stdscr):
                         stdscr.refresh()
                         
             else:
-                send_message(usr_token, usr_in, str(group_id))
+                send_message(usr_token, usr_in, str(group_id), cur_chat_type)
             usr_in = ""
             cursor = [2,scr_h-1]
             stdscr.clear()
