@@ -173,7 +173,7 @@ def gm(stdscr):
             stdscr.clear()
 
         else:
-            if usr_in_char >= 32 and usr_in_char <=126:  # if user typed in a displayable character
+            if usr_in_char >= 32 and usr_in_char <=126 and len(usr_in) < scr_w-3:  # if user typed in a displayable character
                 stdscr.clear()
                 usr_in = usr_in + chr(usr_in_char)
                 cursor[0] = min(cursor[0]+1,scr_w-1)
